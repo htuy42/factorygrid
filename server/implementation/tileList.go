@@ -195,7 +195,7 @@ func (l *tileListener) sendBatchedUpdates() {
 	// the bytes the references point to are copied to wire, and they can't change during that process.
 
 	// todo consider: all the changes we make *could* be made safely if they didn't change the *size* of the tiles.
-	// In order to do this, we could require that every tile have either only a single entity, or at most some fixed
+	// In order to do this, we could require that every tile have either only a single Entity, or at most some fixed
 	// number of entities, and have the viewResponses always send the full list. This just requires creating a 0
 	// value for entities that the client knows to ignore, and slightly increasing the bite size of messages. This would
 	// eliminate the slightly kludgy locking that we currently "get" to do.

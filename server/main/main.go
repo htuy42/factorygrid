@@ -38,6 +38,18 @@ func (f factoryProvider) RequestView(ctx context.Context, rectangle *proto.Recta
 	return f.factory.RequestViewSquares(rectangle, NegativeRect)
 }
 
+// todo make this part of configurations rather than hardcoding it. A little bit annoying to do but probably a good idea
+func makeInteractions() map[string]implementation.Interaction {
+	res := make(map[string]implementation.Interaction)
+	res["0"] = implementation.NewPaintInteraction(0)
+	res["1"] = implementation.NewPaintInteraction(1)
+	res["2"] = implementation.NewPaintInteraction(2)
+	res["b"] = implementation.NewSpawnInteraction(func(x,y int32) implementation.EntityTicker{
+		return implementation.BEETLE
+	})
+	return res
+}
+
 func makeFactoryProvider() *factoryProvider {
 	res := factoryProvider{}
 	res.configs = config.MakeConfigs()
@@ -46,7 +58,7 @@ func makeFactoryProvider() *factoryProvider {
 	res.worldHeightTiles = res.configs.GetConfigI("world-configs", "world-height-tiles")
 	waitsForSync := res.configs.GetConfig("world-configs", "tile-sync").(bool)
 	msBetweenTicks := 1000 / res.configs.GetConfigI64("world-configs", "max-tile-tick-rate")
-	res.factory = implementation.MakeFactory(res.tileSize, res.worldWidthTiles, res.worldHeightTiles, waitsForSync, msBetweenTicks,res.configs)
+	res.factory = implementation.MakeFactory(res.tileSize, res.worldWidthTiles, res.worldHeightTiles, waitsForSync, msBetweenTicks, res.configs, makeInteractions())
 	res.factory.StartRunning()
 	return &res
 }

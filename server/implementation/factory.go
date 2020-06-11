@@ -5,7 +5,6 @@ import (
 	proto "server/protos"
 )
 
-
 // Factory is a confusing name: a more accurate one would be "world" or "grid controller," but this project was
 // loosely motivated by creating a factorio "clone," so Factory it is.
 
@@ -17,7 +16,7 @@ type Factory interface {
 	// about. The client will get a ScreenResponse for rectangle - oldRect, to avoid sending tiles the client already
 	// knows about
 	RequestViewSquares(rectangle *proto.Rectangle, oldRect *proto.Rectangle) (*proto.ScreenResponse, error)
-	// Send an interaction and have it handled by the tile it designates as its target
+	// Send an Interaction and have it handled by the tile it designates as its target
 	SendInteraction(interaction *proto.Interaction)
 	// Instruct the factory to begin serving a RequestViewStream. The returned channel outputs a boolean when the
 	// stream is done, before which point the server should not be exited.
@@ -41,23 +40,22 @@ type factoryInner struct {
 	tileListeners *listenerList
 	// Whether or not the factory is currently running. Setting this to false will terminate the factory.
 	running bool
-	// When an entity moves from one tile to another, the tile will dump the entity to this. The factory will
-	// then send the entity to the appropriate new host tile of the entity
-	movingEntities chan *entity
+	// When an Entity moves from one tile to another, the tile will dump the Entity to this. The factory will
+	// then send the Entity to the appropriate new host tile of the Entity
+	movingEntities chan *Entity
 	// Config accessor for the factory
 	conf config.ConfigProvider
 }
 
-
 func (f *factoryInner) AddViewStream(server proto.FactoryService_RequestViewStreamServer) chan bool {
-	return f.tileListeners.startListener(server,f, f.conf.GetConfigI64("world-configs","view-batch-interval-ms"))
+	return f.tileListeners.startListener(server, f, f.conf.GetConfigI64("world-configs", "view-batch-interval-ms"))
 }
 
 func (f *factoryInner) SendInteraction(interaction *proto.Interaction) {
 	tileX := interaction.X / f.tileSize32
 	tileY := interaction.Y / f.tileSize32
 	// As a rule, when an invalid coordinate appears we just drop the message
-	if tileX >= 0 && tileX < int32(f.worldWidthTiles) && tileY >= 0 && tileY < int32(f.worldHeightTiles){
+	if tileX >= 0 && tileX < int32(f.worldWidthTiles) && tileY >= 0 && tileY < int32(f.worldHeightTiles) {
 		interaction.X %= f.tileSize32
 		interaction.Y %= f.tileSize32
 		f.tiles[tileY][tileX].interactions <- interaction
@@ -74,25 +72,25 @@ func (f *factoryInner) RequestViewSquares(rectangle *proto.Rectangle, oldRect *p
 	oldStartY := oldRect.StartY / f.tileSize32
 	oldEndX := (oldRect.StartX + oldRect.Width) / f.tileSize32
 	oldEndY := (oldRect.StartY + oldRect.Height) / f.tileSize32
-	if (rectangle.StartX + rectangle.Width) % f.tileSize32 != 0{
+	if (rectangle.StartX+rectangle.Width)%f.tileSize32 != 0 {
 		endSquareX += 1
 	}
-	if (rectangle.StartY + rectangle.Height) % f.tileSize32 != 0{
+	if (rectangle.StartY+rectangle.Height)%f.tileSize32 != 0 {
 		endSquareY += 1
 	}
-	if (oldRect.StartX + oldRect.Width) % f.tileSize32 != 0{
+	if (oldRect.StartX+oldRect.Width)%f.tileSize32 != 0 {
 		oldEndX += 1
 	}
-	if (oldRect.StartY + oldRect.Height) % f.tileSize32 != 0{
+	if (oldRect.StartY+oldRect.Height)%f.tileSize32 != 0 {
 		oldEndY += 1
 	}
-	for x := startSquareX; x <= endSquareX; x++{
-		for y := startSquareY; y <= endSquareY; y++{
+	for x := startSquareX; x <= endSquareX; x++ {
+		for y := startSquareY; y <= endSquareY; y++ {
 			// skip if its within old rect!
-			if x > oldStartX && x <= oldEndX && y > oldStartY && y <= oldEndY{
+			if x > oldStartX && x <= oldEndX && y > oldStartY && y <= oldEndY {
 				continue
 			}
-			if x < 0 || y < 0 || x >= int32(f.worldWidthTiles) || y >= int32(f.worldHeightTiles){
+			if x < 0 || y < 0 || x >= int32(f.worldWidthTiles) || y >= int32(f.worldHeightTiles) {
 				continue
 			}
 			subviews = append(subviews, f.tiles[y][x].lastViewResponse)
@@ -102,24 +100,29 @@ func (f *factoryInner) RequestViewSquares(rectangle *proto.Rectangle, oldRect *p
 }
 
 // Create a new factory. In practice returns a factoryInner, for the moment
-func MakeFactory(tileSize, worldWidthTiles, worldHeightTiles int, tileSync bool, msBetweenTicks int64, conf config.ConfigProvider) Factory {
+func MakeFactory(tileSize, worldWidthTiles, worldHeightTiles int, tileSync bool,
+	msBetweenTicks int64, conf config.ConfigProvider, interactions map[string]Interaction) Factory {
 	res := factoryInner{
 		tileSize:         tileSize,
 		worldWidthTiles:  worldWidthTiles,
 		worldHeightTiles: worldHeightTiles,
 		tileSize32:       int32(tileSize),
-		tiles:            make([][]*tile,worldHeightTiles),
+		tiles:            make([][]*tile, worldHeightTiles),
 		running:          true,
 		tileSync:         tileSync,
 		changedTilesChan: make(chan *tile, 1000),
 		tileListeners:    makeListenerList(),
-		movingEntities:   make(chan *entity, 1000),
+		movingEntities:   make(chan *Entity, 1000),
 		conf:             conf,
 	}
 	for i := 0; i < len(res.tiles); i++ {
-	    res.tiles[i] = make([]*tile,worldWidthTiles)
-	    for j := 0; j < len(res.tiles[i]); j++ {
-	        res.tiles[i][j] = makeTile(tileSync,res.changedTilesChan,j,i,tileSize,msBetweenTicks,res.movingEntities)
+		res.tiles[i] = make([]*tile, worldWidthTiles)
+		for j := 0; j < len(res.tiles[i]); j++ {
+			interactionsCopy := make(map[string]Interaction)
+			for k, v := range(interactions){
+				interactionsCopy[k] = v
+			}
+			res.tiles[i][j] = makeTile(tileSync, res.changedTilesChan, j, i, tileSize, msBetweenTicks, res.movingEntities, interactionsCopy)
 		}
 	}
 	return &res
@@ -127,34 +130,34 @@ func MakeFactory(tileSize, worldWidthTiles, worldHeightTiles int, tileSync bool,
 
 // If tile sync is on, sends a sync token, then do not send a new one out to any of them until they have all sent it
 // back. Tiles currently ignore sync tokens, but if this feature is wanted that can easily be changed.
-func (f *factoryInner) beginTileSync(){
-	for f.running{
+func (f *factoryInner) beginTileSync() {
+	for f.running {
 		for i := 0; i < len(f.tiles); i++ {
-		    cur := f.tiles[i]
-		    for j := 0; j < len(cur); j++ {
-		        tile := cur[i]
-		        tile.syncControl <- true
-		    }
+			cur := f.tiles[i]
+			for j := 0; j < len(cur); j++ {
+				tile := cur[i]
+				tile.syncControl <- true
+			}
 		}
 		for i := 0; i < len(f.tiles); i++ {
 			cur := f.tiles[i]
 			for j := 0; j < len(cur); j++ {
 				tile := cur[i]
-				<- tile.syncControl
+				<-tile.syncControl
 			}
 		}
 	}
 }
 
 // Repeatedly pole the channel of entities that need to be moved, and forward entities to the tile that now owns them
-func (f *factoryInner) transferEntities(){
-	for f.running{
-		movedEntity := <- f.movingEntities
+func (f *factoryInner) transferEntities() {
+	for f.running {
+		movedEntity := <-f.movingEntities
 		targetTileX := movedEntity.worldX / f.tileSize32
 		targetTileY := movedEntity.worldY / f.tileSize32
 		// If it falls off the edge, it gets thrown out.
-		if int(targetTileX) < f.worldWidthTiles &&  movedEntity.worldX > 0{
-			if int(targetTileY) < f.worldHeightTiles && movedEntity.worldY > 0{
+		if int(targetTileX) < f.worldWidthTiles && movedEntity.worldX > 0 {
+			if int(targetTileY) < f.worldHeightTiles && movedEntity.worldY > 0 {
 				f.tiles[targetTileY][targetTileX].entitiesIn <- movedEntity
 			}
 		}
@@ -162,9 +165,9 @@ func (f *factoryInner) transferEntities(){
 }
 
 // Pole tiles from the changedTilesChan and send them onto the tileListenerList
-func (f *factoryInner) beginTileCaching(){
-	for f.running{
-		changedTile := <- f.changedTilesChan
+func (f *factoryInner) beginTileCaching() {
+	for f.running {
+		changedTile := <-f.changedTilesChan
 		f.tileListeners.sendChannelChanges(changedTile)
 	}
 }
@@ -172,7 +175,7 @@ func (f *factoryInner) beginTileCaching(){
 // Begin tileCaching and entityTransfer, as well as tileSync if that feature is on. Essentially run all of the
 // background features the factory requires
 func (f *factoryInner) StartRunning() {
-	if f.tileSync{
+	if f.tileSync {
 		go f.beginTileSync()
 	}
 	go f.beginTileCaching()
