@@ -1,0 +1,8 @@
+{
+	"tile-size": 5,
+	"world-width-tiles": 20,
+	"world-height-tiles": 15,
+	"max-tile-tick-rate": 10,
+	"view-batch-interval-ms": 100,
+	"tile-sync": false
+}

@@ -1,0 +1,52 @@
+syntax = "proto3";
+package tutorial;
+
+message Rectangle {
+	int32 startX = 1;
+	int32 startY = 2;
+	int32 width = 3;
+	int32 height = 4;
+}
+
+message Interaction{
+	int32 x = 1;
+	int32 y = 2;
+	string interactionChar = 3; 
+}
+
+message Entity{
+	int32 typeId = 1;
+}
+
+message Tile{
+	repeated Entity entities = 1;
+	int32 tileTypeId = 2;
+}
+
+message ViewResponse{
+	Rectangle viewOf = 1;
+	repeated Tile tiles = 2;
+}
+
+message ScreenResponse{
+	repeated ViewResponse subViews = 1;
+}
+
+message Coord{
+	int32 x = 1;
+	int32 y = 2;
+}
+
+message ViewRequest{
+	Rectangle fullView = 1;
+	Rectangle oldView = 2;
+}
+
+message Empty{
+}
+
+service FactoryService{
+	rpc Interact (Interaction) returns (Empty);
+	rpc RequestView (Rectangle) returns (ScreenResponse);
+	rpc RequestViewStream(stream ViewRequest) returns (stream ScreenResponse);
+}

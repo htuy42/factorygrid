@@ -1,0 +1,18 @@
+{
+	"default-height": 500,
+	"default-width": 500,
+	"default-cell-size": 20,
+	"tile-colors": [
+		[0,55,180],
+		[20,100,0],
+		[200,0,100]
+	],
+	"entity-renders": [
+		{
+			"shape":"circle",
+			"size": 0.5,
+			"color":2
+		}
+	],
+	"render-extra-border": 10
+}
