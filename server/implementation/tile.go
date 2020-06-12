@@ -62,7 +62,12 @@ type tile struct {
 	// Whether or not a view response refresh is currently happening. Prevents more than one refresh from being queued
 	// up, since there is nothing wrong with doing several modifications and then only refreshing the view once.
 	refreshing     bool
+	// All of the interactions this tile knows how to respond to.
 	interactionMap map[string]Interaction
+	// The time this tile first ticked. Used for computing total duration
+	startTime time.Time
+	// The time this tile last ticked. Used for computing time delta
+	lastTime time.Time
 }
 
 // Refresh lastViewResponse for changes that have happened due to ticks since it was last refreshed
@@ -84,6 +89,7 @@ func (t *tile) refreshViewResponseFromCells() {
 				t.lastViewResponse.Tiles[y*t.size+x].Entities = make([]*proto.Entity, len(reference.entities))
 				ind := 0
 				for e := range reference.entities {
+					e.internal.TypeId = e.ticker.typeId
 					t.lastViewResponse.Tiles[y*t.size+x].Entities[ind] = e.internal
 					ind++
 				}
@@ -119,6 +125,8 @@ func makeTile(waitForSync bool, outChan chan *tile, x, y, size int, msBetweenTic
 	res.refreshing = false
 	res.size32 = int32(res.size)
 	res.setInitialContents()
+	res.startTime = time.Now()
+	res.lastTime = time.Now()
 	res.msBetweenTicks = msBetweenTicks
 	go res.startTicking()
 	return &res
@@ -222,8 +230,8 @@ func (t *tile) moveEnt(ent *Entity, startLocalX, startLocalY int32) bool {
 // Tick all entities. Marks us dirty if any new entities are created, any entities are deleted, or any Entity moves.
 // Otherwise, there may have been Entity state updates, but there are no changes the client can see, so we don't need
 // to be dirty.
-func (t *tile) tickEntities() {
-	// TODO: entities will  theoretically appear in the block they are leaving and the block they are entering briefly:
+func (t *tile) tickEntities(sinceFirst, sinceLast *time.Duration, timeNow *time.Time) {
+	// TODO: entities will theoretically appear in the block they are leaving and the block they are entering briefly:
 	// they are moved, and then the new tile finds about them. At that point it might send off an update with them
 	// added, before this block finishes ticking and sends off an update with them removed. They won't actually be in
 	// both places logically from the servers perspective / we aren't really duplicating entities, but the client may
@@ -233,7 +241,8 @@ func (t *tile) tickEntities() {
 	for ent := range t.allEntities {
 		curX := ent.worldX
 		curY := ent.worldY
-		ent.tick(t)
+		curId := ent.ticker.typeId
+		ent.tick(t,sinceFirst,sinceLast,timeNow)
 		if ent.dead {
 			deletedEntities = append(deletedEntities, ent)
 		}
@@ -244,6 +253,11 @@ func (t *tile) tickEntities() {
 			if removed {
 				deletedEntities = append(deletedEntities, ent)
 			}
+		}
+		// If the entity changed its type id, the cell is dirty.
+		if ent.ticker.typeId != curId{
+			t.dirty = true
+			t.internalContents[curY%t.size32][curX%t.size32].dirty = true
 		}
 	}
 	if len(deletedEntities) != 0 {
@@ -271,9 +285,11 @@ func (t *tile) startTicking() {
 		}
 		// For syncing to t.msBetweenTicks
 		tickTime := time.Now()
+		sinceFirst := tickTime.Sub(t.startTime)
+		sinceLast := tickTime.Sub(t.lastTime)
 		// Lock the mod lock in order to actually change contents
 		t.modLock.Lock()
-		t.tickEntities()
+		t.tickEntities(&sinceFirst,&sinceLast,&tickTime)
 		t.runInteractionsAndEntityMoves()
 		t.modLock.Unlock()
 		// do actual ticking stuff
@@ -287,7 +303,8 @@ func (t *tile) startTicking() {
 			}
 		}
 		t.generation += 1
-		elapsed := time.Now().Sub(tickTime)
+		t.lastTime = time.Now()
+		elapsed := t.lastTime.Sub(tickTime)
 		if elapsed.Milliseconds() < t.msBetweenTicks {
 			time.Sleep(time.Duration(t.msBetweenTicks-elapsed.Milliseconds()) * time.Millisecond)
 		}

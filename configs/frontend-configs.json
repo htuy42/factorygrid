@@ -12,6 +12,26 @@
 			"shape":"circle",
 			"size": 0.5,
 			"color":2
+		},
+		{
+			"shape":"circle",
+			"size": 0.4,
+			"color":2
+		},
+		{
+			"shape":"circle",
+			"size": 0.3,
+			"color":2
+		},
+		{
+			"shape":"circle",
+			"size": 0.2,
+			"color":2
+		},
+		{
+			"shape":"circle",
+			"size": 0.1,
+			"color":2
 		}
 	],
 	"render-extra-border": 10

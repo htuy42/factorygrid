@@ -47,6 +47,9 @@ func makeInteractions() map[string]implementation.Interaction {
 	res["b"] = implementation.NewSpawnInteraction(func(x,y int32) implementation.EntityTicker{
 		return implementation.BEETLE
 	})
+	res["a"] = implementation.NewSpawnInteraction(func(x,y int32) implementation.EntityTicker{
+		return implementation.NewTimeAnimator(100,[]int32{0,1,2,3,4,3,2,1})
+	})
 	return res
 }
 
